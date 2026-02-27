@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Lumina Slide Puzzle</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;500;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            font-family: 'Space Grotesk', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+            background-size: 400% 400%;
+            animation: gradientShift 15s ease infinite;
+            min-height: 100vh;
+            min-height: 100dvh;
+        }
+        
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        
+        .game-container {
+            width: 100%;
+            max-width: 500px;
+            margin: 0 auto;
+        }
+        
+        @media (min-width: 1024px) {
+            .game-container {
+                max-width: none;
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 2rem;
+                align-items: center;
+            }
+        }
+        
+        .tile {
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            background: linear-gradient(135deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0.05) 100%);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+            box-shadow: 0 4px 16px 0 rgba(31, 38, 135, 0.37);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            cursor: pointer;
+            user-select: none;
+            position: relative;
+            overflow: hidden;
+            border-radius: 12px;
+            aspect-ratio: 1;
+        }
+        
+        @media (min-width: 640px) {
+            .tile {
+                border-radius: 16px;
+                box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+            }
+        }
+        
+        .tile:active:not(.empty) {
+            transform: scale(0.95);
+            background: linear-gradient(135deg, rgba(255,255,255,0.25) 0%, rgba(255,255,255,0.15) 100%);
+        }
+        
+        @media (hover: hover) {
+            .tile:hover:not(.empty) {
+                transform: scale(1.05);
+                box-shadow: 0 12px 40px 0 rgba(31, 38, 135, 0.5);
+                border-color: rgba(255,255,255,0.4);
+            }
+        }
+        
+        .tile.correct {
+            background: linear-gradient(135deg, rgba(34,197,94,0.3) 0%, rgba(34,197,94,0.15) 100%);
+            border-color: rgba(34,197,94,0.6);
+        }
+        
+        .tile-number {
+            background: linear-gradient(135deg, #fff 0%, #94a3b8 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-size: clamp(1rem, 5vw, 1.5rem);
+        }
+        
+        @media (min-width: 640px) {
+            .tile-number {
+                font-size: clamp(1.25rem, 3vw, 2rem);
+            }
+        }
+        
+        .tile-number.hint {
+            background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .glow-text {
+            text-shadow: 0 0 20px rgba(255,255,255,0.5), 0 0 40px rgba(147,197,253,0.3);
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+            transition: all 0.2s ease;
+            touch-action: manipulation;
+        }
+        
+        .btn-primary:active {
+            transform: scale(0.95);
+        }
+        
+        @media (hover: hover) {
+            .btn-primary:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 10px 30px rgba(59,130,246,0.5);
+            }
+        }
+        
+        .btn-secondary {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            transition: all 0.2s ease;
+            touch-action: manipulation;
+        }
+        
+        .btn-secondary:active {
+            transform: scale(0.95);
+            background: rgba(255,255,255,0.2);
+        }
+        
+        .particle {
+            position: fixed;
+            pointer-events: none;
+            opacity: 0;
+            animation: particleFloat 1s ease-out forwards;
+            z-index: 100;
+        }
+        
+        @keyframes particleFloat {
+            0% {
+                opacity: 1;
+                transform: translate(0, 0) scale(1);
+            }
+            100% {
+                opacity: 0;
+                transform: translate(var(--tx), var(--ty)) scale(0);
+            }
+        }
+        
+        .shake {
+            animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
+        }
+        
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-1px, 0, 0); }
+            20%, 80% { transform: translate3d(2px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-2px, 0, 0); }
+            40%, 60% { transform: translate3d(2px, 0, 0); }
+        }
+        
+        .win-overlay {
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(10px);
+        }
+        
+        .star {
+            animation: twinkle 2s infinite;
+        }
+        
+        @keyframes twinkle {
+            0%, 100% { opacity: 0.3; transform: scale(1); }
+            50% { opacity: 1; transform: scale(1.2); }
+        }
+        
+        .board-wrapper {
+            width: 100%;
+            max-width: 400px;
+            margin: 0 auto;
+            position: relative;
+        }
+        
+        @media (min-width: 640px) {
+            .board-wrapper {
+                max-width: 450px;
+            }
+        }
+        
+        @media (min-width: 1024px) {
+            .board-wrapper {
+                max-width: 500px;
+            }
+        }
+        
+        #gameBoard {
+            display: grid;
+            gap: 8px;
+            width: 100%;
+        }
+        
+        @media (min-width: 640px) {
+            #gameBoard {
+                gap: 12px;
+            }
+        }
+        
+        .stats-card {
+            background: rgba(255,255,255,0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 16px;
+            padding: 1rem;
+            text-align: center;
+        }
+        
+        @media (max-width: 380px) {
+            .stats-card {
+                padding: 0.75rem;
+            }
+        }
+        
+        .control-btn {
+            padding: 0.75rem 1rem;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 0.875rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            flex: 1;
+            min-width: 0;
+        }
+        
+        @media (min-width: 640px) {
+            .control-btn {
+                padding: 0.75rem 1.5rem;
+                font-size: 1rem;
+            }
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center p-4 overflow-x-hidden">
+    <div class="game-container w-full">
+        
+        <!-- Left Panel: Game Info -->
+        <div class="space-y-4 lg:space-y-6 text-center lg:text-left mb-6 lg:mb-0">
+            <div class="space-y-1">
+                <h1 class="text-4xl sm:text-5xl lg:text-6xl font-bold text-white glow-text tracking-tight">
+                    Lumina
+                </h1>
+                <p class="text-slate-400 text-base sm:text-lg">Slide Puzzle Challenge</p>
+            </div>
+            
+            <div class="grid grid-cols-3 gap-2 sm:gap-4 max-w-xs mx-auto lg:mx-0">
+                <div class="stats-card">
+                    <div class="text-xl sm:text-2xl font-bold text-blue-400" id="moves">0</div>
+                    <div class="text-xs text-slate-400 uppercase tracking-wider mt-1">Moves</div>
+                </div>
+                <div class="stats-card">
+                    <div class="text-xl sm:text-2xl font-bold text-purple-400" id="time">00:00</div>
+                    <div class="text-xs text-slate-400 uppercase tracking-wider mt-1">Time</div>
+                </div>
+                <div class="stats-card">
+                    <div class="text-xl sm:text-2xl font-bold text-emerald-400" id="best">--</div>
+                    <div class="text-xs text-slate-400 uppercase tracking-wider mt-1">Best</div>
+                </div>
+            </div>
+            
+            <div class="flex gap-2 justify-center lg:justify-start max-w-xs mx-auto lg:mx-0">
+                <button onclick="game.shuffle()" class="btn-primary control-btn text-white">
+                    <svg class="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                    </svg>
+                    <span class="hidden sm:inline">New</span>
+                    <span class="sm:hidden">New</span>
+                </button>
+                <button onclick="game.changeSize()" class="btn-secondary control-btn text-white">
+                    <span id="sizeBtn">4×4</span>
+                </button>
+                <button onclick="game.toggleHint()" class="btn-secondary control-btn text-white" id="hintBtn">
+                    Hint
+                </button>
+            </div>
+            
+            <p class="text-slate-500 text-sm max-w-xs mx-auto lg:mx-0 hidden sm:block">
+                Arrange tiles in order from 1 to 15. Tap a tile next to the empty space to move it.
+            </p>
+        </div>
+        
+        <!-- Right Panel: Game Board -->
+        <div class="board-wrapper">
+            <div class="absolute -inset-2 sm:-inset-4 bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-3xl blur-2xl"></div>
+            <div class="relative bg-slate-900/50 backdrop-blur-xl rounded-2xl sm:rounded-3xl p-3 sm:p-6 border border-white/10 shadow-2xl">
+                <div id="gameBoard">
+                    <!-- Tiles generated by JS -->
+                </div>
+                
+                <!-- Win Overlay -->
+                <div id="winOverlay" class="win-overlay absolute inset-0 rounded-2xl sm:rounded-3xl flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-500 z-50">
+                    <div class="text-center transform scale-0 transition-transform duration-500 px-4" id="winContent">
+                        <div class="text-5xl sm:text-6xl mb-3">🎉</div>
+                        <h2 class="text-3xl sm:text-4xl font-bold text-white mb-2">Solved!</h2>
+                        <p class="text-slate-300 mb-4 sm:mb-6 text-sm sm:text-base">Amazing work!</p>
+                        <div class="flex gap-3 justify-center text-sm">
+                            <div class="bg-white/10 px-3 py-2 rounded-lg">
+                                <span class="text-slate-400">Moves:</span>
+                                <span class="text-white font-bold ml-1" id="finalMoves">0</span>
+                            </div>
+                            <div class="bg-white/10 px-3 py-2 rounded-lg">
+                                <span class="text-slate-400">Time:</span>
+                                <span class="text-white font-bold ml-1" id="finalTime">00:00</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Mobile Instructions -->
+            <p class="text-slate-500 text-xs text-center mt-4 sm:hidden">
+                Tap tiles next to empty space to move
+            </p>
+        </div>
+    </div>
+    
+    <!-- Background Stars -->
+    <div class="fixed inset-0 pointer-events-none overflow-hidden">
+        <div class="star absolute top-10 left-10 w-2 h-2 bg-white rounded-full opacity-30"></div>
+        <div class="star absolute top-20 right-20 w-1 h-1 bg-blue-400 rounded-full opacity-50" style="animation-delay: 0.5s"></div>
+        <div class="star absolute bottom-20 left-20 w-2 h-2 bg-purple-400 rounded-full opacity-40" style="animation-delay: 1s"></div>
+        <div class="star absolute top-1/2 left-5 w-1 h-1 bg-white rounded-full opacity-60" style="animation-delay: 1.5s"></div>
+        <div class="star absolute bottom-10 right-10 w-2 h-2 bg-blue-300 rounded-full opacity-30" style="animation-delay: 0.3s"></div>
+    </div>
+
+    <script>
+        class SlidePuzzle {
+            constructor() {
+                this.size = 4;
+                this.tiles = [];
+                this.emptyPos = { row: 3, col: 3 };
+                this.moves = 0;
+                this.timer = 0;
+                this.timerInterval = null;
+                this.isPlaying = false;
+                this.showHint = false;
+                this.bestScore = localStorage.getItem('puzzleBest') || '--';
+                
+                this.init();
+            }
+            
+            init() {
+                document.getElementById('best').textContent = this.bestScore;
+                this.createBoard();
+                this.shuffle();
+            }
+            
+            createBoard() {
+                const board = document.getElementById('gameBoard');
+                board.innerHTML = '';
+                board.style.gridTemplateColumns = `repeat(${this.size}, 1fr)`;
+                
+                this.tiles = [];
+                
+                for (let i = 0; i < this.size * this.size; i++) {
+                    const row = Math.floor(i / this.size);
+                    const col = i % this.size;
+                    const value = i === this.size * this.size - 1 ? 0 : i + 1;
+                    
+                    const tile = document.createElement('div');
+                    tile.className = `tile ${value === 0 ? 'empty opacity-0' : ''}`;
+                    tile.dataset.value = value;
+                    tile.dataset.row = row;
+                    tile.dataset.col = col;
+                    
+                    if (value !== 0) {
+                        tile.innerHTML = `<span class="tile-number">${value}</span>`;
+                        tile.addEventListener('click', () => this.moveTile(row, col));
+                        tile.addEventListener('touchstart', (e) => {
+                            e.preventDefault();
+                            this.moveTile(row, col);
+                        }, { passive: false });
+                    }
+                    
+                    board.appendChild(tile);
+                    this.tiles.push({ element: tile, value, row, col });
+                }
+            }
+            
+            updatePositions() {
+                this.tiles.forEach((tile, index) => {
+                    const correctValue = index + 1;
+                    if (tile.value === 0) {
+                        tile.element.classList.add('empty', 'opacity-0');
+                        tile.element.classList.remove('correct');
+                    } else {
+                        tile.element.classList.remove('empty', 'opacity-0');
+                        const isCorrect = this.showHint && tile.value === correctValue;
+                        tile.element.innerHTML = `<span class="tile-number ${isCorrect ? 'hint' : ''}">${tile.value}</span>`;
+                        tile.element.classList.toggle('correct', isCorrect);
+                    }
+                    
+                    // Update event listeners with new coordinates
+                    const newRow = tile.row;
+                    const newCol = tile.col;
+                    tile.element.dataset.row = newRow;
+                    tile.element.dataset.col = newCol;
+                    
+                    // Clone to remove old listeners
+                    if (tile.value !== 0) {
+                        const newElement = tile.element.cloneNode(true);
+                        tile.element.parentNode.replaceChild(newElement, tile.element);
+                        tile.element = newElement;
+                        
+                        tile.element.addEventListener('click', () => this.moveTile(newRow, newCol));
+                        tile.element.addEventListener('touchstart', (e) => {
+                            e.preventDefault();
+                            this.moveTile(newRow, newCol);
+                        }, { passive: false });
+                    }
+                });
+            }
+            
+            moveTile(row, col) {
+                if (!this.isPlaying) return;
+                
+                const tile = this.tiles.find(t => t.row === row && t.col === col);
+                if (!tile || tile.value === 0) return;
+                
+                const distance = Math.abs(row - this.emptyPos.row) + Math.abs(col - this.emptyPos.col);
+                
+                if (distance === 1) {
+                    const emptyTile = this.tiles.find(t => t.value === 0);
+                    
+                    this.createParticles(tile.element);
+                    
+                    const tempRow = tile.row;
+                    const tempCol = tile.col;
+                    tile.row = this.emptyPos.row;
+                    tile.col = this.emptyPos.col;
+                    emptyTile.row = tempRow;
+                    emptyTile.col = tempCol;
+                    this.emptyPos = { row: tempRow, col: tempCol };
+                    
+                    this.moves++;
+                    this.updateUI();
+                    this.updatePositions();
+                    
+                    if (this.checkWin()) {
+                        this.handleWin();
+                    }
+                } else {
+                    tile.element.classList.add('shake');
+                    setTimeout(() => tile.element.classList.remove('shake'), 400);
+                }
+            }
+            
+            createParticles(element) {
+                const rect = element.getBoundingClientRect();
+                const centerX = rect.left + rect.width / 2;
+                const centerY = rect.top + rect.height / 2;
+                const colors = ['#60a5fa', '#a78bfa', '#34d399', '#fbbf24'];
+                
+                for (let i = 0; i < 6; i++) {
+                    const particle = document.createElement('div');
+                    particle.className = 'particle w-2 h-2 rounded-full';
+                    particle.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                    particle.style.left = centerX + 'px';
+                    particle.style.top = centerY + 'px';
+                    particle.style.setProperty('--tx', (Math.random() - 0.5) * 100 + 'px');
+                    particle.style.setProperty('--ty', (Math.random() - 0.5) * 100 + 'px');
+                    document.body.appendChild(particle);
+                    
+                    setTimeout(() => particle.remove(), 1000);
+                }
+            }
+            
+            shuffle() {
+                this.reset();
+                
+                let previousPos = null;
+                const shuffleMoves = this.size === 3 ? 20 : 30;
+                
+                for (let i = 0; i < shuffleMoves; i++) {
+                    const neighbors = this.getNeighbors(this.emptyPos.row, this.emptyPos.col);
+                    const validNeighbors = neighbors.filter(n => 
+                        !previousPos || n.row !== previousPos.row || n.col !== previousPos.col
+                    );
+                    
+                    if (validNeighbors.length > 0) {
+                        const randomNeighbor = validNeighbors[Math.floor(Math.random() * validNeighbors.length)];
+                        const tile = this.tiles.find(t => t.row === randomNeighbor.row && t.col === randomNeighbor.col);
+                        const emptyTile = this.tiles.find(t => t.value === 0);
+                        
+                        previousPos = { ...this.emptyPos };
+                        
+                        const tempRow = tile.row;
+                        const tempCol = tile.col;
+                        tile.row = this.emptyPos.row;
+                        tile.col = this.emptyPos.col;
+                        emptyTile.row = tempRow;
+                        emptyTile.col = tempCol;
+                        this.emptyPos = { row: tempRow, col: tempCol };
+                    }
+                }
+                
+                this.updatePositions();
+                this.isPlaying = true;
+                this.startTimer();
+            }
+            
+            getNeighbors(row, col) {
+                const neighbors = [];
+                const directions = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+                
+                for (const [dr, dc] of directions) {
+                    const newRow = row + dr;
+                    const newCol = col + dc;
+                    if (newRow >= 0 && newRow < this.size && newCol >= 0 && newCol < this.size) {
+                        neighbors.push({ row: newRow, col: newCol });
+                    }
+                }
+                
+                return neighbors;
+            }
+            
+            checkWin() {
+                for (let i = 0; i < this.tiles.length; i++) {
+                    const tile = this.tiles[i];
+                    const correctRow = Math.floor((tile.value - 1) / this.size);
+                    const correctCol = (tile.value - 1) % this.size;
+                    
+                    if (tile.value !== 0 && (tile.row !== correctRow || tile.col !== correctCol)) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+            
+            handleWin() {
+                this.isPlaying = false;
+                this.stopTimer();
+                
+                document.getElementById('finalMoves').textContent = this.moves;
+                document.getElementById('finalTime').textContent = this.formatTime(this.timer);
+                
+                const overlay = document.getElementById('winOverlay');
+                const content = document.getElementById('winContent');
+                
+                overlay.classList.remove('opacity-0', 'pointer-events-none');
+                content.classList.remove('scale-0');
+                
+                if (this.bestScore === '--' || this.moves < parseInt(this.bestScore)) {
+                    this.bestScore = this.moves;
+                    localStorage.setItem('puzzleBest', this.bestScore);
+                    document.getElementById('best').textContent = this.bestScore;
+                }
+                
+                for (let i = 0; i < 20; i++) {
+                    setTimeout(() => {
+                        const particle = document.createElement('div');
+                        particle.className = 'particle w-3 h-3 rounded-full';
+                        particle.style.backgroundColor = ['#60a5fa', '#a78bfa', '#34d399'][Math.floor(Math.random() * 3)];
+                        particle.style.left = Math.random() * window.innerWidth + 'px';
+                        particle.style.top = window.innerHeight + 'px';
+                        particle.style.setProperty('--tx', (Math.random() - 0.5) * 200 + 'px');
+                        particle.style.setProperty('--ty', -Math.random() * 500 - 100 + 'px');
+                        document.body.appendChild(particle);
+                        setTimeout(() => particle.remove(), 1000);
+                    }, i * 50);
+                }
+                
+                setTimeout(() => {
+                    overlay.classList.add('opacity-0', 'pointer-events-none');
+                    content.classList.add('scale-0');
+                }, 3000);
+            }
+            
+            reset() {
+                this.moves = 0;
+                this.timer = 0;
+                this.stopTimer();
+                this.updateUI();
+                document.getElementById('time').textContent = '00:00';
+                
+                this.tiles.forEach((tile, index) => {
+                    const row = Math.floor(index / this.size);
+                    const col = index % this.size;
+                    tile.row = row;
+                    tile.col = col;
+                    if (tile.value === 0) {
+                        this.emptyPos = { row, col };
+                    }
+                });
+            }
+            
+            startTimer() {
+                this.stopTimer();
+                this.timerInterval = setInterval(() => {
+                    this.timer++;
+                    document.getElementById('time').textContent = this.formatTime(this.timer);
+                }, 1000);
+            }
+            
+            stopTimer() {
+                if (this.timerInterval) {
+                    clearInterval(this.timerInterval);
+                    this.timerInterval = null;
+                }
+            }
+            
+            formatTime(seconds) {
+                const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
+                const secs = (seconds % 60).toString().padStart(2, '0');
+                return `${mins}:${secs}`;
+            }
+            
+            updateUI() {
+                document.getElementById('moves').textContent = this.moves;
+            }
+            
+            changeSize() {
+                this.size = this.size === 3 ? 4 : 3;
+                document.getElementById('sizeBtn').textContent = `${this.size}×${this.size}`;
+                this.showHint = false;
+                document.getElementById('hintBtn').textContent = 'Hint';
+                document.getElementById('hintBtn').classList.remove('bg-emerald-500/20');
+                this.createBoard();
+                this.shuffle();
+            }
+            
+            toggleHint() {
+                this.showHint = !this.showHint;
+                document.getElementById('hintBtn').textContent = this.showHint ? 'Hide' : 'Hint';
+                document.getElementById('hintBtn').classList.toggle('bg-emerald-500/20', this.showHint);
+                this.updatePositions();
+            }
+        }
+        
+        const game = new SlidePuzzle();
+    </script>
+</body>
+</html>
